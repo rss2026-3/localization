@@ -7,3 +7,17 @@ scan_simulator_2d.cpp
 *.pyc
 .vscode/
 CATKIN_IGNORE
+.DS_Store
+
+# Local test files
+localization/test/test_*_local.py
+
+# Data collection outputs
+*.csv
+charts/
+csv_files/
+csv_files_old/
+synthetic_data/
+
+# Data analysis and utility scripts
+scripts/

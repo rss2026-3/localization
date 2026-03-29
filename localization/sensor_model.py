@@ -1,6 +1,6 @@
 import numpy as np
 from scan_simulator_2d import PyScanSimulator2D
-# Try to change to just `from scan_simulator_2d import PyScanSimulator2D` 
+# Try to change to just `from scan_simulator_2d import PyScanSimulator2D`
 # if any error re: scan_simulator_2d occurs
 
 from tf_transformations import euler_from_quaternion
@@ -31,11 +31,11 @@ class SensorModel:
 
         ####################################
         # Adjust these parameters
-        self.alpha_hit = 0
-        self.alpha_short = 0
-        self.alpha_max = 0
-        self.alpha_rand = 0
-        self.sigma_hit = 0
+        self.alpha_hit = 0.74
+        self.alpha_short = 0.07
+        self.alpha_max = 0.07
+        self.alpha_rand = 0.12
+        self.sigma_hit = 8.0
 
         # Your sensor table will be a `table_width` x `table_width` np array:
         self.table_width = 201
@@ -61,6 +61,7 @@ class SensorModel:
         # Subscribe to the map
         self.map = None
         self.map_set = False
+        self.map_resolution = None
         self.map_subscriber = node.create_subscription(
             OccupancyGrid,
             self.map_topic,
@@ -71,7 +72,7 @@ class SensorModel:
         """
         Generate and store a table which represents the sensor model.
 
-        For each discrete computed range value, this provides the probability of 
+        For each discrete computed range value, this provides the probability of
         measuring any (discrete) range. This table is indexed by the sensor model
         at runtime by discretizing the measurements and computed ranges from
         RangeLibc.
@@ -87,7 +88,43 @@ class SensorModel:
             No return type. Directly modify `self.sensor_model_table`.
         """
 
-        raise NotImplementedError
+        #Table axes: rows = measured z, cols = ground truth d
+        z_max = self.table_width - 1
+        z = np.arange(self.table_width)  # measured values
+        d = np.arange(self.table_width)  # ground truth values
+
+        #z_grid[i,j] = z[i], d_grid[i,j] = d[j]
+        z_grid, d_grid = np.meshgrid(z, d, indexing='ij')
+
+        #p_hit: Gaussian centered at d
+        p_hit = np.exp(-0.5 * ((z_grid - d_grid) / self.sigma_hit) ** 2)
+        col_sums = p_hit.sum(axis=0)
+        col_sums[col_sums == 0] = 1.0
+        p_hit = p_hit / col_sums
+
+        #p_short: 2/d * (1 - z/d)
+        p_short = np.zeros_like(z_grid, dtype=float)
+        valid = (d_grid > 0) & (z_grid <= d_grid) & (z_grid >= 0)
+        p_short[valid] = (2.0 / d_grid[valid]) * (1.0 - z_grid[valid] / d_grid[valid])
+
+        #p_max: spike at z_max
+        p_max = np.zeros_like(z_grid, dtype=float)
+        p_max[z_grid == z_max] = 1.0
+
+        #p_rand: uniform
+        p_rand = np.ones_like(z_grid, dtype=float) / z_max
+
+        #Combined and normalized table
+        self.sensor_model_table = (
+            self.alpha_hit * p_hit +
+            self.alpha_short * p_short +
+            self.alpha_max * p_max +
+            self.alpha_rand * p_rand
+        )
+
+        col_sums = self.sensor_model_table.sum(axis=0)
+        col_sums[col_sums == 0] = 1.0
+        self.sensor_model_table = self.sensor_model_table / col_sums
 
     def evaluate(self, particles, observation):
         """
@@ -114,15 +151,31 @@ class SensorModel:
             return
 
         ####################################
-        # TODO
-        # Evaluate the sensor model here!
-        #
-        # You will probably want to use this function
-        # to perform ray tracing from all the particles.
-        # This produces a matrix of size N x num_beams_per_particle 
-
+        # Ray trace from all particles to get expected scans (N x num_beams)
         scans = self.scan_sim.scan(particles)
 
+        # Convert from meters to pixels
+        scale = self.map_resolution * self.lidar_scale_to_map_scale
+        z_max = self.table_width - 1
+
+        # Scale the observed and expected lidar readings
+        obs_pixels = np.clip(observation / scale, 0, z_max)
+        scans_pixels = np.clip(scans / scale, 0, z_max)
+
+        # Convert to integer indices
+        obs_indices = np.clip(obs_pixels.astype(int), 0, z_max)
+        scan_indices = np.clip(scans_pixels.astype(int), 0, z_max)
+
+        # Look up precomputed probabilities
+        # sensor_model_table[z, d] = P(z | d)
+        # obs_indices is the measured z, scan_indices is the ground truth d
+        probs = self.sensor_model_table[obs_indices, scan_indices]
+
+        # Multiply over all beams (with log-sum to avoid underflow)
+        log_probs = np.sum(np.log(probs + 1e-300), axis=1)
+        probabilities = np.exp(log_probs)
+
+        return probabilities
         ####################################
 
     def map_callback(self, map_msg):
@@ -130,7 +183,7 @@ class SensorModel:
         self.map = np.array(map_msg.data, np.double) / 100.
         self.map = np.clip(self.map, 0, 1)
 
-        self.resolution = map_msg.info.resolution
+        self.map_resolution = map_msg.info.resolution
 
         # Convert the origin to a tuple
         origin_p = map_msg.info.origin.position

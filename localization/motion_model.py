@@ -1,15 +1,16 @@
+import numpy as np
 
 
 class MotionModel:
 
     def __init__(self, node):
         ####################################
-        # TODO
-        # Do any precomputation for the motion
-        # model here.
+        node.declare_parameter('deterministic', False)
+        self.deterministic = node.get_parameter('deterministic').get_parameter_value().bool_value
 
-        pass
-
+        # Noise standard deviations for non-deterministic mode
+        # These scale with the magnitude of the odometry
+        self.odom_noise_stds = np.array([0.1, 0.1, 0.05])
         ####################################
 
     def evaluate(self, particles, odometry):
@@ -32,8 +33,24 @@ class MotionModel:
         """
 
         ####################################
-        # TODO
+        dx, dy, dtheta = odometry
 
-        raise NotImplementedError
+        if not self.deterministic:
+            # Adds noise proportional to odometry magnitude, or at least 1e-6
+            n = particles.shape[0]
+            magnitude = np.sqrt(dx ** 2 + dy ** 2 + dtheta ** 2) + 1e-6
+            noise = np.random.normal(0, self.odom_noise_stds * magnitude, size=(n, 3))
+            dx = dx + noise[:, 0]
+            dy = dy + noise[:, 1]
+            dtheta = dtheta + noise[:, 2]
 
+        cos_theta = np.cos(particles[:, 2])
+        sin_theta = np.sin(particles[:, 2])
+
+        # Rotate body-frame odometry into world frame and apply
+        particles[:, 0] += cos_theta * dx - sin_theta * dy
+        particles[:, 1] += sin_theta * dx + cos_theta * dy
+        particles[:, 2] += dtheta
+
+        return particles
         ####################################
