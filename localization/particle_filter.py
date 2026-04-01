@@ -14,7 +14,8 @@ from geometry_msgs.msg import TransformStamped
 
 from rclpy.node import Node
 import rclpy
-from tf_transformations import quaternion_from_euler, euler_from_quaternion
+from scipy.spatial.transform import Rotation as R
+# from tf_transformations import quaternion_from_euler, euler_from_quaternion
 
 assert rclpy
 
@@ -222,9 +223,9 @@ class ParticleFilter(Node):
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
         orientation = msg.pose.pose.orientation
-        _, _, theta = euler_from_quaternion([
+        _, _, theta = R.from_quat([
             orientation.x, orientation.y, orientation.z, orientation.w
-        ])
+        ]).as_euler("xyz")
 
         # Spread particles around the pose
         self.particles[:, 0] = x + np.random.normal(0, 0.5, self.num_particles)
@@ -268,7 +269,8 @@ class ParticleFilter(Node):
         odom_msg.header.stamp = now
         odom_msg.header.frame_id = "/map"
         odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y = avg_x, avg_y
-        q = quaternion_from_euler(0, 0, avg_theta)
+        q = R.from_euler("xyz", (0, 0, avg_theta)).as_quat()
+        # q = quaternion_from_euler(0, 0, avg_theta)
         odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y, odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w = q[0], q[1], q[2], q[3]
         self.odom_pub.publish(odom_msg)
 
@@ -292,7 +294,7 @@ class ParticleFilter(Node):
         for i in range(self.num_particles):
             pose = Pose()
             pose.position.x, pose.position.y = self.particles[i, 0], self.particles[i, 1]
-            q = quaternion_from_euler(0, 0, self.particles[i, 2])
+            q = R.from_euler("xyz", (0, 0, self.particles[i, 2])).as_quat()
             pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = q[0], q[1], q[2], q[3]
             pa.poses.append(pose)
 
