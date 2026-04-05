@@ -18,6 +18,3 @@ charts/
 csv_files/
 csv_files_old/
 synthetic_data/
-
-# Data analysis and utility scripts
-scripts/
