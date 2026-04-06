@@ -10,7 +10,14 @@ class MotionModel:
 
         # Noise standard deviations for non-deterministic mode
         # These scale with the magnitude of the odometry
-        self.odom_noise_stds = np.array([0.1, 0.1, 0.05])
+        node.declare_parameter('odom_noise_x', 0.1)
+        node.declare_parameter('odom_noise_y', 0.1)
+        node.declare_parameter('odom_noise_theta', 0.05)
+        self.odom_noise_stds = np.array([
+            node.get_parameter('odom_noise_x').get_parameter_value().double_value,
+            node.get_parameter('odom_noise_y').get_parameter_value().double_value,
+            node.get_parameter('odom_noise_theta').get_parameter_value().double_value,
+        ])
         ####################################
 
     def evaluate(self, particles, odometry):
