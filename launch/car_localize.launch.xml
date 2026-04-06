@@ -1,5 +1,22 @@
 <launch>
+    <!-- Map server -->
+    <node pkg="nav2_map_server" exec="map_server" name="map_server" output="screen">
+        <param name="yaml_filename" value="$(find-pkg-share localization)/maps/stata_basement.yaml"/>
+        <param name="frame_id" value="map"/>
+    </node>
+
+    <!-- Lifecycle manager to activate the map server -->
+    <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager" name="lifecycle_manager_map" output="screen">
+        <param name="autostart" value="true"/>
+        <param name="node_names" value="['map_server']"/>
+    </node>
+
+    <!-- Particle filter -->
     <node pkg="localization" exec="particle_filter_real" name="particle_filter" output="screen">
         <param from="$(find-pkg-share localization)/real_params.yaml"/>
     </node>
+
+    <!-- RViz -->
+    <node pkg="rviz2" exec="rviz2" name="rviz2" output="screen"
+          args="-d $(find-pkg-share localization)/localization.rviz"/>
 </launch>

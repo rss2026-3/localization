@@ -1,0 +1,46 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Enabled: true
+      Name: Map
+      Topic:
+        Value: /map
+      Value: true
+    - Class: rviz_default_plugins/PoseArray
+      Color: 255; 85; 0
+      Enabled: true
+      Name: Particles
+      Topic:
+        Value: /particles
+      Value: true
+    - Class: rviz_default_plugins/Odometry
+      Enabled: true
+      Name: PF Pose
+      Topic:
+        Value: /pf/pose/odom
+      Value: true
+      Shape:
+        Alpha: 1.0
+        Color: 0; 170; 0
+        Head Length: 0.1
+        Head Radius: 0.05
+        Shaft Length: 0.3
+        Shaft Radius: 0.025
+    - Class: rviz_default_plugins/LaserScan
+      Color: 255; 0; 0
+      Enabled: true
+      Name: LiDAR Scan
+      Topic:
+        Value: /scan
+      Value: true
+      Size (m): 0.03
+  Global Options:
+    Fixed Frame: map
+  Value: true
